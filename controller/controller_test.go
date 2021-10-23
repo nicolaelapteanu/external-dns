@@ -25,6 +25,7 @@ import (
 
 	"sigs.k8s.io/external-dns/endpoint"
 	"sigs.k8s.io/external-dns/internal/testutils"
+	"sigs.k8s.io/external-dns/pkg/apis/externaldns"
 	"sigs.k8s.io/external-dns/plan"
 	"sigs.k8s.io/external-dns/provider"
 	"sigs.k8s.io/external-dns/registry"
@@ -119,6 +120,8 @@ func newMockProvider(endpoints []*endpoint.Endpoint, changes *plan.Changes) prov
 func TestRunOnce(t *testing.T) {
 	// Fake some desired endpoints coming from our source.
 	source := new(testutils.MockSource)
+	cfg := externaldns.NewConfig()
+	cfg.ManagedDNSRecordTypes = []string{endpoint.RecordTypeA, endpoint.RecordTypeCNAME}
 	source.On("Endpoints").Return([]*endpoint.Endpoint{
 		{
 			DNSName:    "create-record",
@@ -167,9 +170,10 @@ func TestRunOnce(t *testing.T) {
 
 	// Run our controller once to trigger the validation.
 	ctrl := &Controller{
-		Source:   source,
-		Registry: r,
-		Policy:   &plan.SyncPolicy{},
+		Source:             source,
+		Registry:           r,
+		Policy:             &plan.SyncPolicy{},
+		ManagedRecordTypes: cfg.ManagedDNSRecordTypes,
 	}
 
 	assert.NoError(t, ctrl.RunOnce(context.Background()))
@@ -219,6 +223,9 @@ func TestShouldRunOnce(t *testing.T) {
 
 func testControllerFiltersDomains(t *testing.T, configuredEndpoints []*endpoint.Endpoint, domainFilter endpoint.DomainFilterInterface, providerEndpoints []*endpoint.Endpoint, expectedChanges []*plan.Changes) {
 	t.Helper()
+	cfg := externaldns.NewConfig()
+	cfg.ManagedDNSRecordTypes = []string{endpoint.RecordTypeA, endpoint.RecordTypeCNAME}
+
 	source := new(testutils.MockSource)
 	source.On("Endpoints").Return(configuredEndpoints, nil)
 
@@ -231,10 +238,11 @@ func testControllerFiltersDomains(t *testing.T, configuredEndpoints []*endpoint.
 	require.NoError(t, err)
 
 	ctrl := &Controller{
-		Source:       source,
-		Registry:     r,
-		Policy:       &plan.SyncPolicy{},
-		DomainFilter: domainFilter,
+		Source:             source,
+		Registry:           r,
+		Policy:             &plan.SyncPolicy{},
+		DomainFilter:       domainFilter,
+		ManagedRecordTypes: cfg.ManagedDNSRecordTypes,
 	}
 
 	assert.NoError(t, ctrl.RunOnce(context.Background()))
